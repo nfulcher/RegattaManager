@@ -78,8 +78,8 @@ struct RegattaManagerApp: App {
         let regatta = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
         context.insert(regatta)
         
-        // Create 11 Races with all 15 skippers
-        for i in 1...15 {
+        // Create 12 Races with all 15 skippers
+        for i in 1...12 {
             let race = Race(finishingPositions: skippers.shuffled())
             race.event = regatta
             regatta.races.append(race)

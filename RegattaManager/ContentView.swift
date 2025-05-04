@@ -118,8 +118,8 @@ struct ContentView: View {
         let regatta = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
         context.insert(regatta)
         
-        // Create 11 Races with all 15 skippers
-        for i in 1...11 {
+        // Create 12 Races with all 15 skippers
+        for i in 1...12 {
             let race = Race(finishingPositions: skippers.shuffled())
             race.event = regatta
             regatta.races.append(race)
