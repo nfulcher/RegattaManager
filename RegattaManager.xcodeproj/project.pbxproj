@@ -35,16 +35,6 @@
 			path = RegattaManager;
 			sourceTree = "<group>";
 		};
-		41921A052DAB062200348BA7 /* RegattaManagerTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = RegattaManagerTests;
-			sourceTree = "<group>";
-		};
-		41921A0F2DAB062200348BA7 /* RegattaManagerUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = RegattaManagerUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,8 +66,6 @@
 			isa = PBXGroup;
 			children = (
 				419219F22DAB061E00348BA7 /* RegattaManager */,
-				41921A052DAB062200348BA7 /* RegattaManagerTests */,
-				41921A0F2DAB062200348BA7 /* RegattaManagerUITests */,
 				419219F12DAB061E00348BA7 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,9 +118,6 @@
 			dependencies = (
 				41921A042DAB062200348BA7 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				41921A052DAB062200348BA7 /* RegattaManagerTests */,
-			);
 			name = RegattaManagerTests;
 			packageProductDependencies = (
 			);
@@ -153,9 +138,6 @@
 			dependencies = (
 				41921A0E2DAB062200348BA7 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				41921A0F2DAB062200348BA7 /* RegattaManagerUITests */,
-			);
 			name = RegattaManagerUITests;
 			packageProductDependencies = (
 			);
@@ -175,6 +157,7 @@
 				TargetAttributes = {
 					419219EF2DAB061E00348BA7 = {
 						CreatedOnToolsVersion = 16.2;
+						LastSwiftMigration = 1620;
 					};
 					41921A012DAB062200348BA7 = {
 						CreatedOnToolsVersion = 16.2;
@@ -393,6 +376,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"RegattaManager/Preview Content\"";
@@ -412,6 +396,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.nmf.RegattaManager;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -422,6 +407,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"RegattaManager/Preview Content\"";
