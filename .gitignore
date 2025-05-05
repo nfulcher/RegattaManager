@@ -1,8 +1,12 @@
 # Xcode
 .DS_Store
-xcuserdata/
-*.xcworkspace
 *.xcuserstate
-build/
+*.xcworkspace/
+!*.xcworkspace/*.pbxproj
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcuserdata/
 DerivedData/
-
+build/
+# Other
+*.log
+Pods/
