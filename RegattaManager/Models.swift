@@ -48,7 +48,14 @@ class Race {
     var event: RaceEvent?
     private var finishingPositionsNames: [String]
     private var statuses: [String: String] // Maps skipper ID to RaceStatus rawValue
-
+    
+    var isCompleted: Bool {
+        let finishers = finishingPositionsNames.filter { statuses[$0] == RaceStatus.finished.rawValue }
+        let dns = finishingPositionsNames.filter { statuses[$0] == RaceStatus.dns.rawValue }
+        let dnf = finishingPositionsNames.filter { statuses[$0] == RaceStatus.dnf.rawValue }
+        return !finishers.isEmpty || !dns.isEmpty || !dnf.isEmpty
+    }
+    
     init(finishingPositions: [Skipper]) {
         self.creationDate = Date()
         self.finishingPositionsNames = finishingPositions.map { $0.id }

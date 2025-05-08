@@ -22,9 +22,9 @@ struct RegattaDetailView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) { // No spacing between rows
+            VStack(alignment: .leading, spacing: 0) {
                 // Event Details
-                VStack(alignment: .leading, spacing: 1) { // Minimal internal spacing
+                VStack(alignment: .leading, spacing: 1) {
                     Text(event.name)
                         .font(StyleGuide.headlineFont)
                         .foregroundColor(StyleGuide.textColor)
@@ -35,78 +35,41 @@ struct RegattaDetailView: View {
                         .font(StyleGuide.bodyFont)
                         .foregroundColor(StyleGuide.textColor)
                 }
-                .padding(.horizontal, 16) // Match List's default horizontal padding
-                .padding(.top, 8) // Add space above "Test Regatta"
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Event Details: Name \(event.name), Location \(event.location), Date \(event.date, style: .date)")
                 
-                // Races (without a "Races" section header)
-                ForEach(races, id: \.self) { race in
-                    // Race Title
-                    Text("Race \(raceNumber(for: race))")
-                        .font(StyleGuide.bodyFont)
-                        .bold()
-                        .foregroundColor(StyleGuide.textColor)
-                        .padding(.horizontal, 16) // Match List's default horizontal padding
-                        .padding(.top, 8) // was 8 Space above race title for hierarchy
-                        .padding(.bottom, 8) // was 8 Space above race title for hierarchy
-                    
-                    Divider() // Thin line beneath the race title
-                    
-                    let finishingPositions = race.fetchFinishingPositions(using: modelContext)
-                    if finishingPositions.isEmpty {
-                        Text("No finishing positions recorded")
-                            .font(StyleGuide.bodyFont)
-                            .foregroundColor(StyleGuide.secondaryTextColor)
-                            .padding(.horizontal, 16) // Match List's default horizontal padding
-                            .accessibilityLabel("No finishing positions recorded for Race \(raceNumber(for: race))")
-                        
-                        Divider() // Thin line after "No finishing positions recorded"
-                    } else {
-                        ForEach(finishingPositions.indices, id: \.self) { index in
-                            let skipper = finishingPositions[index]
-                            let status = race.getStatus(for: skipper)
-                            let positionText = status == .finished ? "\(index + 1)" : status.rawValue.uppercased()
-                            let statusText = status == .finished ? "" : " (\(status.rawValue.uppercased()))"
-                            let positionSuffix = status == .finished ? positionSuffix(for: index + 1) : ""
-                            
-                            HStack {
-                                Text("\(positionSuffix)\(status == .finished ? "" : positionText)")
-                                    .font(StyleGuide.bodyFont)
-                                    .foregroundColor(status == .finished ? StyleGuide.textColor : .red)
-                                
-                                Spacer() // Push sail number to the right
-                                
-                                Text("\(skipper.sailNumber)\(statusText)")
-                                    .font(StyleGuide.bodyFont)
-                                    .foregroundColor(status == .finished ? StyleGuide.textColor : .red)
-                                    .multilineTextAlignment(.trailing)
-                                    .padding(.vertical, 8) // Line spacing NMF
-                               
-                            }
-                            .padding(.horizontal, 16) // Match List's default horizontal padding
-                            .accessibilityLabel("Position \(positionText), Sail number \(skipper.sailNumber), Status \(status.rawValue.uppercased())")
-                            
-                            Divider() // Thin line between each finishing position
-                        }
-                    }
-                }
-                .onTapGesture {
-                    if let race = races.first(where: { $0 == selectedRace }) {
+                // Completed Races
+                ForEach(races.filter { $0.isCompleted }, id: \.self) { race in
+                    Button(action: {
                         selectedRace = race
                         showEditRaceView = true
+                    }) {
+                        Text("Race \(raceNumber(for: race))")
+                            .font(StyleGuide.bodyFont)
+                            .bold()
+                            .foregroundColor(StyleGuide.textColor)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .accessibilityLabel("Race \(raceNumber(for: race))")
+                    .accessibilityHint("Tap to view and edit finishing positions")
+                    
+                    Divider()
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Race List")
-                .accessibilityHint("Tap to edit finishing positions")
                 
-                // Add bottom padding to ensure the last row isn't cut off
+                // Add bottom padding
                 Spacer()
                     .frame(height: 8)
             }
         }
-        .id(refreshID) // Force refresh when refreshID changes
+        .id(refreshID)
         .navigationTitle("Regatta Details")
         .background(StyleGuide.nauticalGradient)
         .toolbar {
@@ -118,8 +81,7 @@ struct RegattaDetailView: View {
                         event.races.append(newRace)
                         modelContext.insert(newRace)
                         try modelContext.save()
-                        refreshID = UUID() // Trigger UI refresh
-                        // Present EditRaceView for the new race
+                        refreshID = UUID()
                         selectedRace = newRace
                         showEditRaceView = true
                         print("Successfully added new race and opened EditRaceView")
@@ -139,7 +101,7 @@ struct RegattaDetailView: View {
                     race.setFinishingPositions(updatedSkippers)
                     do {
                         try modelContext.save()
-                        refreshID = UUID() // Trigger UI refresh
+                        refreshID = UUID()
                         print("Successfully saved race updates")
                     } catch {
                         print("Failed to save race updates: \(error)")
@@ -207,25 +169,29 @@ struct RegattaDetailView: View {
     
     let event = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
     
-    var raceSkippers1 = skippers
-    raceSkippers1.removeAll { $0.sailNumber == "01" } // Exclude Neil Johnson (DNS)
-    let race1 = Race(finishingPositions: raceSkippers1)
+    // Race 1: Some finishers, DNS, and DNF
+    let race1Finishers = Array(skippers[0..<5]) // First 5 skippers
+    let race1 = Race(finishingPositions: race1Finishers)
+    race1.setStatus(.dns, for: skippers[0]) // Neil Johnson DNS
+    race1.setStatus(.dnf, for: skippers[1]) // Ivy King DNF
     
-    var raceSkippers2 = skippers
-    raceSkippers2.removeAll { $0.sailNumber == "110" } // Exclude Ivy King (DNF)
-    let race2 = Race(finishingPositions: raceSkippers2)
+    // Race 2: Different finishers
+    let race2Finishers = Array(skippers[5..<10]) // Next 5 skippers
+    let race2 = Race(finishingPositions: race2Finishers)
+    race2.setStatus(.dns, for: skippers[5]) // Trevor Brown DNS
+    
+    // Race 3: Empty (not completed)
+    let race3 = Race(finishingPositions: [])
     
     race1.event = event
     race2.event = event
-    event.races.append(contentsOf: [race1, race2])
-    
-    // Mark some boats as DNS/DNF for testing
-    race1.setStatus(.dns, for: skippers[0]) // Neil Johnson DNS in Race 1
-    race2.setStatus(.dnf, for: skippers[1]) // Ivy King DNF in Race 2
+    race3.event = event
+    event.races.append(contentsOf: [race1, race2, race3])
     
     context.insert(event)
     context.insert(race1)
     context.insert(race2)
+    context.insert(race3)
     
     do {
         try context.save()

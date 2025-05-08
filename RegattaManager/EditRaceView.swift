@@ -127,17 +127,24 @@ struct SkipperDropDelegate: DropDelegate {
               draggedSkipper.id != skipper.id,
               let fromIndex = finishers.firstIndex(where: { $0.id == draggedSkipper.id }),
               let toIndex = finishers.firstIndex(where: { $0.id == skipper.id }) else {
+            print("Drop failed: draggedSkipper=\(draggedSkipper?.sailNumber ?? "nil"), skipper=\(skipper.sailNumber)")
             return false
         }
         
-        finishers.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+        print("Dropping \(draggedSkipper.sailNumber) from index \(fromIndex) to index \(toIndex)")
+        finishers.remove(at: fromIndex)
+        finishers.insert(draggedSkipper, at: toIndex)
         self.draggedSkipper = nil
+        print("New order: \(finishers.map { $0.sailNumber }.joined(separator: ", "))")
         return true
     }
     
-    func dropEntered(info: DropInfo) {}
+    func dropEntered(info: DropInfo) {
+        print("Drop entered for skipper \(skipper.sailNumber)")
+    }
     
     func dropUpdated(info: DropInfo) -> DropProposal? {
+        print("Drop updated for skipper \(skipper.sailNumber)")
         return DropProposal(operation: .move)
     }
 }
@@ -211,48 +218,53 @@ struct FinishingPositionsSection: View {
                     LazyVGrid(columns: gridColumns, spacing: 8) {
                         ForEach(finishedSkippers.indices, id: \.self) { index in
                             let skipper = finishedSkippers[index]
-                            let tile = SkipperTile(
+                            HStack {
+                                SkipperTile(
+                                    skipper: skipper,
+                                    position: index + 1,
+                                    onTap: {
+                                        withAnimation {
+                                            finishedSkippers.removeAll { $0.id == skipper.id }
+                                            unfinishedSkippers.append(skipper)
+                                            unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+                                        }
+                                    }
+                                )
+                                Image(systemName: "line.3.horizontal")
+                                    .foregroundColor(StyleGuide.secondaryTextColor)
+                                    .padding(.trailing, 8)
+                                    .accessibilityLabel("Drag to reorder")
+                            }
+                            .onDrag({
+                                self.draggedSkipper = skipper
+                                return NSItemProvider(object: skipper.id as NSString)
+                            }, preview: {
+                                SkipperTile(skipper: skipper, position: index + 1, onTap: {})
+                                    .opacity(0.8)
+                            })
+                            .onDrop(of: [.text], delegate: SkipperDropDelegate(
                                 skipper: skipper,
-                                position: index + 1,
-                                onTap: {
+                                finishers: $finishedSkippers,
+                                draggedSkipper: $draggedSkipper
+                            ))
+                            .contextMenu {
+                                Button(action: {
                                     withAnimation {
                                         finishedSkippers.removeAll { $0.id == skipper.id }
-                                        unfinishedSkippers.append(skipper)
-                                        unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+                                        dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dns))
                                     }
+                                }) {
+                                    Text("Mark as DNS")
                                 }
-                            )
-                            tile
-                                .onDrag({
-                                    self.draggedSkipper = skipper
-                                    return NSItemProvider(object: skipper.id as NSString)
-                                }, preview: {
-                                    SkipperTile(skipper: skipper, position: index + 1, onTap: {})
-                                        .opacity(0.8)
-                                })
-                                .onDrop(of: [.text], delegate: SkipperDropDelegate(
-                                    skipper: skipper,
-                                    finishers: $finishedSkippers,
-                                    draggedSkipper: $draggedSkipper
-                                ))
-                                .contextMenu {
-                                    Button(action: {
-                                        withAnimation {
-                                            finishedSkippers.removeAll { $0.id == skipper.id }
-                                            dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dns))
-                                        }
-                                    }) {
-                                        Text("Mark as DNS")
+                                Button(action: {
+                                    withAnimation {
+                                        finishedSkippers.removeAll { $0.id == skipper.id }
+                                        dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dnf))
                                     }
-                                    Button(action: {
-                                        withAnimation {
-                                            finishedSkippers.removeAll { $0.id == skipper.id }
-                                            dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dnf))
-                                        }
-                                    }) {
-                                        Text("Mark as DNF")
-                                    }
+                                }) {
+                                    Text("Mark as DNF")
                                 }
+                            }
                         }
                     }
                     .padding(.horizontal)
@@ -447,14 +459,30 @@ struct EditRaceView: View {
             .onAppear {
                 // Initialize the lists
                 let currentFinishingPositions = race.fetchFinishingPositions(using: modelContext)
-                finishedSkippers = currentFinishingPositions.filter { race.getStatus(for: $0) == .finished }
-                dnsDnfSkippers = currentFinishingPositions.compactMap { skipper in
+                
+                // Reset lists
+                finishedSkippers = []
+                dnsDnfSkippers = []
+                unfinishedSkippers = []
+                
+                // First, categorize skippers that have recorded positions
+                for skipper in currentFinishingPositions {
                     let status = race.getStatus(for: skipper)
-                    return status != .finished ? SkipperStatus(skipper: skipper, status: status) : nil
+                    if status == .finished {
+                        finishedSkippers.append(skipper)
+                    } else {
+                        dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: status))
+                    }
                 }
+                
+                // Then, add skippers that are not in the finishing positions to unfinished
                 unfinishedSkippers = allSkippers.filter { skipper in
                     !currentFinishingPositions.contains { $0.id == skipper.id }
                 }
+                
+                // Sort for consistent display
+                finishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+                dnsDnfSkippers.sort { $0.skipper.sailNumber < $1.skipper.sailNumber }
                 unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
             }
         }
