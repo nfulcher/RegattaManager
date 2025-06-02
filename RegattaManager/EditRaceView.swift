@@ -363,6 +363,7 @@ struct EditRaceView: View {
     @State private var finishedSkippers: [Skipper] = []
     @State private var dnsDnfSkippers: [SkipperStatus] = []
     @State private var draggedSkipper: Skipper?
+    @State private var isLoading: Bool = true // Added for loading state
     let race: Race
     let onSave: ([Skipper]) -> Void
     
@@ -405,86 +406,101 @@ struct EditRaceView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                UnfinishedBoatsSection(
-                    unfinishedSkippers: unfinishedSkippers,
-                    gridColumns: gridColumns,
-                    markAsFinished: markAsFinished,
-                    markAsDNS: markAsDNS,
-                    markAsDNF: markAsDNF
-                )
-                
-                FinishingPositionsSection(
-                    finishedSkippers: $finishedSkippers,
-                    unfinishedSkippers: $unfinishedSkippers,
-                    dnsDnfSkippers: $dnsDnfSkippers,
-                    draggedSkipper: $draggedSkipper,
-                    gridColumns: gridColumns
-                )
-                
-                DNSDNFBoatsSection(
-                    dnsDnfSkippers: $dnsDnfSkippers,
-                    unfinishedSkippers: $unfinishedSkippers,
-                    finishedSkippers: $finishedSkippers,
-                    gridColumns: gridColumns
-                )
-            }
-            .background(StyleGuide.nauticalGradient)
-            .navigationTitle("Record Race Finishes")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(StyleGuide.nauticalBlueAccent)
-                    .accessibilityLabel("Cancel editing race")
+            if isLoading {
+                VStack {
+                    ProgressView("Loading race data...")
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .foregroundColor(StyleGuide.nauticalBlueAccent)
+                        .padding()
+                    Spacer()
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        // Set DNS/DNF statuses in the Race object
-                        for skipperStatus in dnsDnfSkippers {
-                            race.setStatus(skipperStatus.status, for: skipperStatus.skipper)
+                .background(StyleGuide.nauticalGradient)
+                .navigationTitle("Record Race Finishes")
+            } else {
+                VStack(spacing: 0) {
+                    UnfinishedBoatsSection(
+                        unfinishedSkippers: unfinishedSkippers,
+                        gridColumns: gridColumns,
+                        markAsFinished: markAsFinished,
+                        markAsDNS: markAsDNS,
+                        markAsDNF: markAsDNF
+                    )
+                    
+                    FinishingPositionsSection(
+                        finishedSkippers: $finishedSkippers,
+                        unfinishedSkippers: $unfinishedSkippers,
+                        dnsDnfSkippers: $dnsDnfSkippers,
+                        draggedSkipper: $draggedSkipper,
+                        gridColumns: gridColumns
+                    )
+                    
+                    DNSDNFBoatsSection(
+                        dnsDnfSkippers: $dnsDnfSkippers,
+                        unfinishedSkippers: $unfinishedSkippers,
+                        finishedSkippers: $finishedSkippers,
+                        gridColumns: gridColumns
+                    )
+                }
+                .background(StyleGuide.nauticalGradient)
+                .navigationTitle("Record Race Finishes")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            dismiss()
                         }
-                        // Combine finished skippers and DNS/DNF skippers for saving
-                        let allSkippers = finishedSkippers + dnsDnfSkippers.map { $0.skipper }
-                        onSave(allSkippers)
-                        dismiss()
+                        .foregroundColor(StyleGuide.nauticalBlueAccent)
+                        .accessibilityLabel("Cancel editing race")
                     }
-                    .foregroundColor(canSave ? StyleGuide.nauticalBlueAccent : StyleGuide.secondaryTextColor)
-                    .disabled(!canSave)
-                    .accessibilityLabel("Save race finishes")
-                    .accessibilityHint(canSave ? "Tap to save the race results" : "Cannot save until all boats are finished or marked as DNS/DNF")
-                }
-            }
-            .onAppear {
-                // Initialize the lists
-                let currentFinishingPositions = race.fetchFinishingPositions(using: modelContext)
-                
-                // Reset lists
-                finishedSkippers = []
-                dnsDnfSkippers = []
-                unfinishedSkippers = []
-                
-                // First, categorize skippers that have recorded positions
-                for skipper in currentFinishingPositions {
-                    let status = race.getStatus(for: skipper)
-                    if status == .finished {
-                        finishedSkippers.append(skipper)
-                    } else {
-                        dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: status))
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            // Set DNS/DNF statuses in the Race object
+                            for skipperStatus in dnsDnfSkippers {
+                                race.setStatus(skipperStatus.status, for: skipperStatus.skipper)
+                            }
+                            // Combine finished skippers and DNS/DNF skippers for saving
+                            let allSkippers = finishedSkippers + dnsDnfSkippers.map { $0.skipper }
+                            onSave(allSkippers)
+                            dismiss()
+                        }
+                        .foregroundColor(canSave ? StyleGuide.nauticalBlueAccent : StyleGuide.secondaryTextColor)
+                        .disabled(!canSave)
+                        .accessibilityLabel("Save race finishes")
+                        .accessibilityHint(canSave ? "Tap to save the race results" : "Cannot save until all boats are finished or marked as DNS/DNF")
                     }
                 }
-                
-                // Then, add skippers that are not in the finishing positions to unfinished
-                unfinishedSkippers = allSkippers.filter { skipper in
-                    !currentFinishingPositions.contains { $0.id == skipper.id }
-                }
-                
-                // Sort for consistent display
-                finishedSkippers.sort { $0.sailNumber < $1.sailNumber }
-                dnsDnfSkippers.sort { $0.skipper.sailNumber < $1.skipper.sailNumber }
-                unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
             }
+        }
+        .onAppear {
+            // Initialize the lists
+            let currentFinishingPositions = race.fetchFinishingPositions(using: modelContext)
+            
+            // Reset lists
+            finishedSkippers = []
+            dnsDnfSkippers = []
+            unfinishedSkippers = []
+            
+            // First, categorize skippers that have recorded positions
+            for skipper in currentFinishingPositions {
+                let status = race.getStatus(for: skipper)
+                if status == .finished {
+                    finishedSkippers.append(skipper)
+                } else {
+                    dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: status))
+                }
+            }
+            
+            // Then, add skippers that are not in the finishing positions to unfinished
+            unfinishedSkippers = allSkippers.filter { skipper in
+                !currentFinishingPositions.contains { $0.id == skipper.id }
+            }
+            
+            // Removed sorting to preserve the order from finishingPositionsNames
+            // finishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+            // dnsDnfSkippers.sort { $0.skipper.sailNumber < $1.sailNumber }
+            // unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+            
+            // Finish loading
+            isLoading = false
         }
     }
     

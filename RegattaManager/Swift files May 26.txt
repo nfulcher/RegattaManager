@@ -1,0 +1,1943 @@
+Below are the Swift files you have requested. These are all the files in the project.
+
+The filenames are in the comments of the first line:
+
+Start of first file:
+
+// ContentView.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 15/04/2025.
+//
+
+import SwiftUI
+import SwiftData
+
+struct ContentView: View {
+    @EnvironmentObject private var clearDataManager: ClearDataManager
+    @State private var showDebugButtons = false
+
+    var body: some View {
+        TabView {
+            RegattaListView()
+                .tabItem {
+                    Label("Regattas", systemImage: "sailboat")
+                        .foregroundColor(StyleGuide.nauticalBlueAccent)
+                }
+            
+            SkipperManagementView()
+                .tabItem {
+                    Label("Skippers", systemImage: "person.2")
+                        .foregroundColor(StyleGuide.nauticalBlueAccent)
+                }
+            
+            ScoresView()
+                .tabItem {
+                    Label("Scores", systemImage: "list.number")
+                        .foregroundColor(StyleGuide.nauticalBlueAccent)
+                }
+        }
+        .accentColor(StyleGuide.nauticalBlueAccent)
+        .overlay(
+            Group {
+                if showDebugButtons {
+                    VStack(spacing: 10) {
+                        Button(action: {
+                            clearDataManager.clearData()
+                            prepopulateTestData()
+                        }) {
+                            Text("Load Test Data")
+                                .font(StyleGuide.bodyFont)
+                                .padding()
+                                .background(StyleGuide.buttonGradient)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                        }
+                        .accessibilityLabel("Load test data")
+                        .accessibilityHint("Clears existing data and loads predefined test data")
+                        
+                        Button(action: {
+                            clearDataManager.clearData()
+                        }) {
+                            Text("Clear Data")
+                                .font(StyleGuide.bodyFont)
+                                .padding()
+                                .background(StyleGuide.buttonGradient)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                        }
+                        .accessibilityLabel("Clear all app data")
+                        .accessibilityHint("Deletes all regattas, skippers, and races")
+                    }
+                    .padding(.bottom, 60) // Adjusted to avoid tab bar
+                    .padding(.trailing)
+                    .transition(.opacity) // Fade-in/out animation for debug buttons
+                }
+            },
+            alignment: .bottomTrailing
+        )
+        .background(StyleGuide.nauticalGradient)
+        .gesture(
+            LongPressGesture(minimumDuration: 2)
+                .onEnded { _ in
+                    withAnimation {
+                        showDebugButtons.toggle()
+                    }
+                }
+        )
+        .accessibilityLabel("Long press to toggle debug buttons")
+    }
+    
+    @MainActor
+    private func prepopulateTestData() {
+        let context = clearDataManager.modelContainer.mainContext
+        
+        // Create 15 Skippers with surnames; first 3 with 2-digit sail numbers
+        let skippers = [
+            Skipper(id: UUID().uuidString, name: "John Smith", sailNumber: "47"),
+            Skipper(id: UUID().uuidString, name: "Neil Johnson", sailNumber: "01"),
+            Skipper(id: UUID().uuidString, name: "Trevor Brown", sailNumber: "31"),
+            Skipper(id: UUID().uuidString, name: "Alice Davis", sailNumber: "102"),
+            Skipper(id: UUID().uuidString, name: "Bob Wilson", sailNumber: "103"),
+            Skipper(id: UUID().uuidString, name: "Charlie Harris", sailNumber: "104"),
+            Skipper(id: UUID().uuidString, name: "Diana Clark", sailNumber: "105"),
+            Skipper(id: UUID().uuidString, name: "Eve Lewis", sailNumber: "106"),
+            Skipper(id: UUID().uuidString, name: "Frank Walker", sailNumber: "107"),
+            Skipper(id: UUID().uuidString, name: "Grace Hall", sailNumber: "108"),
+            Skipper(id: UUID().uuidString, name: "Henry Allen", sailNumber: "109"),
+            Skipper(id: UUID().uuidString, name: "Ivy King", sailNumber: "110"),
+            Skipper(id: UUID().uuidString, name: "Jack Scott", sailNumber: "111"),
+            Skipper(id: UUID().uuidString, name: "Kelly Green", sailNumber: "112"),
+            Skipper(id: UUID().uuidString, name: "Liam White", sailNumber: "113")
+        ]
+        
+        skippers.forEach { context.insert($0) }
+        
+        // Create Regatta
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "dd MMMM yyyy"
+        guard let date = dateFormatter.date(from: "19 April 2025") else {
+            print("Failed to parse date for test regatta")
+            return
+        }
+        
+        let regatta = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
+        context.insert(regatta)
+        
+        // Create 12 Races with all 15 skippers
+        for i in 1...12 {
+            let race = Race(finishingPositions: skippers.shuffled())
+            race.event = regatta
+            regatta.races.append(race)
+            context.insert(race)
+        }
+        
+        do {
+            try context.save()
+            print("Successfully loaded test data via button")
+        } catch {
+            print("Failed to load test data via button: \(error)")
+        }
+    }
+}
+
+struct SkipperManagementView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Skipper.name, order: .forward) private var skippers: [Skipper]
+    @State private var showingAddSkipperSheet = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if skippers.isEmpty {
+                    Text("No skippers available")
+                        .font(StyleGuide.headlineFont)
+                        .foregroundColor(StyleGuide.secondaryTextColor)
+                        .padding()
+                        .accessibilityLabel("No skippers available")
+                } else {
+                    List {
+                        ForEach(skippers) { skipper in
+                            HStack {
+                                Text(skipper.name)
+                                    .font(StyleGuide.bodyFont)
+                                    .foregroundColor(StyleGuide.textColor)
+                                Spacer()
+                                Text("Sail: \(skipper.sailNumber)")
+                                    .font(StyleGuide.captionFont)
+                                    .foregroundColor(StyleGuide.secondaryTextColor)
+                            }
+                            .padding(.vertical, 4) // Reduced padding for less white space
+                            .padding(.horizontal, 8)
+                            .accessibilityLabel("Skipper: \(skipper.name), Sail Number: \(skipper.sailNumber)")
+                            .accessibilityHint("Swipe to delete")
+                            .transition(.opacity) // Fade-in animation for list items
+                        }
+                        .onDelete { indexSet in
+                            withAnimation {
+                                indexSet.forEach { index in
+                                    let skipper = skippers[index]
+                                    modelContext.delete(skipper)
+                                }
+                                do {
+                                    try modelContext.save()
+                                    print("Deleted skipper, remaining skippers: \(skippers.map { $0.name })")
+                                } catch {
+                                    print("Failed to delete skipper: \(error)")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Skippers")
+            .navigationBarItems(trailing: Button(action: {
+                showingAddSkipperSheet = true
+            }) {
+                Image(systemName: "plus")
+                    .foregroundColor(StyleGuide.nauticalBlueAccent)
+            }
+            .accessibilityLabel("Add new skipper"))
+            .sheet(isPresented: $showingAddSkipperSheet) {
+                AddSkipperView()
+            }
+            .background(StyleGuide.nauticalGradient)
+            .animation(.easeInOut, value: showingAddSkipperSheet) // Sheet animation
+        }
+        .onAppear {
+            print("SkipperManagementView appeared with \(skippers.count) skippers: \(skippers.map { $0.name })")
+        }
+    }
+}
+
+struct AddSkipperView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @State private var name: String = ""
+    @State private var sailNumber: String = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Name", text: $name)
+                    .font(StyleGuide.bodyFont)
+                    .accessibilityLabel("Skipper name")
+                TextField("Sail Number", text: $sailNumber)
+                    .font(StyleGuide.bodyFont)
+                    .accessibilityLabel("Sail number")
+            }
+            .background(StyleGuide.sailWhite)
+            .navigationTitle("Add Skipper")
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    dismiss()
+                }
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(StyleGuide.nauticalBlueAccent)
+                .accessibilityLabel("Cancel adding skipper"),
+                trailing: Button("Save") {
+                    let newSkipper = Skipper(id: UUID().uuidString, name: name, sailNumber: sailNumber)
+                    modelContext.insert(newSkipper)
+                    do {
+                        try modelContext.save()
+                        print("Saved new skipper: \(newSkipper.name)")
+                    } catch {
+                        print("Failed to save skipper: \(error)")
+                    }
+                    dismiss()
+                }
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(StyleGuide.nauticalBlueAccent)
+                .disabled(name.isEmpty || sailNumber.isEmpty)
+                .accessibilityLabel("Save skipper")
+            )
+            .background(StyleGuide.nauticalGradient)
+        }
+    }
+}
+
+#Preview {
+    let schema = Schema([RaceEvent.self, Skipper.self, Race.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: RaceEvent.self, Skipper.self, Race.self, configurations: config)
+    
+    return ContentView()
+        .modelContainer(container)
+        .environmentObject(ClearDataManager(modelContainer: container))
+}
+
+End of File
+
+// EditRaceView.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 18/04/2025.
+//
+
+import SwiftUI
+import SwiftData
+
+struct SkipperStatus {
+    let skipper: Skipper
+    let status: RaceStatus
+}
+
+struct UnfinishedBoatTile: View {
+    let skipper: Skipper
+    let onFinish: () -> Void
+    let onMarkDNS: () -> Void
+    let onMarkDNF: () -> Void
+    
+    var body: some View {
+        Button(action: onFinish) {
+            Text(skipper.sailNumber)
+                .font(StyleGuide.bodyFont)
+                .bold()
+                .foregroundColor(StyleGuide.textColor)
+                .frame(minWidth: 60, minHeight: 60)
+                .background(Color.blue.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .contextMenu {
+            contextMenuContent()
+        }
+        .accessibilityLabel("Sail number \(skipper.sailNumber), yet to finish")
+        .accessibilityHint("Tap to mark this boat as finished, or long press to mark as DNS or DNF")
+    }
+    
+    @ViewBuilder
+    private func contextMenuContent() -> some View {
+        Button(action: onMarkDNS) {
+            Text("Mark as DNS")
+        }
+        Button(action: onMarkDNF) {
+            Text("Mark as DNF")
+        }
+    }
+}
+
+struct SkipperTile: View {
+    let skipper: Skipper
+    let position: Int?
+    let status: String?
+    let onTap: () -> Void
+    
+    init(skipper: Skipper, position: Int? = nil, status: String? = nil, onTap: @escaping () -> Void) {
+        self.skipper = skipper
+        self.position = position
+        self.status = status
+        self.onTap = onTap
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            Text(displayText)
+                .font(StyleGuide.bodyFont)
+                .bold()
+                .foregroundColor(StyleGuide.textColor)
+                .frame(minWidth: 60, minHeight: 60)
+                .background(backgroundColor)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("Tap to move this boat back to unfinished")
+    }
+    
+    private var displayText: String {
+        if let position = position {
+            return "\(skipper.sailNumber) (\(positionSuffix(for: position)))"
+        } else if let status = status {
+            return "\(skipper.sailNumber) (\(status))"
+        } else {
+            return skipper.sailNumber
+        }
+    }
+    
+    private var backgroundColor: Color {
+        if status == "DNS" {
+            return Color.gray.opacity(0.1)
+        } else if status == "DNF" {
+            return Color.orange.opacity(0.1)
+        } else {
+            return Color.green.opacity(0.1)
+        }
+    }
+    
+    private var accessibilityLabel: String {
+        if let position = position {
+            return "Position \(positionSuffix(for: position)), Sail number \(skipper.sailNumber)"
+        } else if let status = status {
+            return "Sail number \(skipper.sailNumber), marked as \(status)"
+        } else {
+            return "Sail number \(skipper.sailNumber)"
+        }
+    }
+    
+    private func positionSuffix(for position: Int) -> String {
+        switch position {
+        case 1:
+            return "1st"
+        case 2:
+            return "2nd"
+        case 3:
+            return "3rd"
+        default:
+            return "\(position)th"
+        }
+    }
+}
+
+struct SkipperDropDelegate: DropDelegate {
+    let skipper: Skipper
+    @Binding var finishers: [Skipper]
+    @Binding var draggedSkipper: Skipper?
+    
+    func performDrop(info: DropInfo) -> Bool {
+        guard let draggedSkipper = draggedSkipper,
+              draggedSkipper.id != skipper.id,
+              let fromIndex = finishers.firstIndex(where: { $0.id == draggedSkipper.id }),
+              let toIndex = finishers.firstIndex(where: { $0.id == skipper.id }) else {
+            print("Drop failed: draggedSkipper=\(draggedSkipper?.sailNumber ?? "nil"), skipper=\(skipper.sailNumber)")
+            return false
+        }
+        
+        print("Dropping \(draggedSkipper.sailNumber) from index \(fromIndex) to index \(toIndex)")
+        finishers.remove(at: fromIndex)
+        finishers.insert(draggedSkipper, at: toIndex)
+        self.draggedSkipper = nil
+        print("New order: \(finishers.map { $0.sailNumber }.joined(separator: ", "))")
+        return true
+    }
+    
+    func dropEntered(info: DropInfo) {
+        print("Drop entered for skipper \(skipper.sailNumber)")
+    }
+    
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        print("Drop updated for skipper \(skipper.sailNumber)")
+        return DropProposal(operation: .move)
+    }
+}
+
+// Extracted Unfinished Boats Section
+struct UnfinishedBoatsSection: View {
+    let unfinishedSkippers: [Skipper]
+    let gridColumns: [GridItem]
+    let markAsFinished: (Skipper) -> Void
+    let markAsDNS: (Skipper) -> Void
+    let markAsDNF: (Skipper) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Boats Yet to Finish")
+                .font(StyleGuide.headlineFont)
+                .foregroundColor(StyleGuide.textColor)
+                .padding(.horizontal)
+                .padding(.top)
+            
+            if unfinishedSkippers.isEmpty {
+                Text("All boats have finished or are marked as DNS/DNF")
+                    .font(StyleGuide.bodyFont)
+                    .foregroundColor(StyleGuide.secondaryTextColor)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: gridColumns, spacing: 8) {
+                        ForEach(unfinishedSkippers, id: \.id) { skipper in
+                            UnfinishedBoatTile(
+                                skipper: skipper,
+                                onFinish: { markAsFinished(skipper) },
+                                onMarkDNS: { markAsDNS(skipper) },
+                                onMarkDNF: { markAsDNF(skipper) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                }
+            }
+        }
+    }
+}
+
+// Extracted Finishing Positions Section
+struct FinishingPositionsSection: View {
+    @Binding var finishedSkippers: [Skipper]
+    @Binding var unfinishedSkippers: [Skipper]
+    @Binding var dnsDnfSkippers: [SkipperStatus]
+    @Binding var draggedSkipper: Skipper?
+    let gridColumns: [GridItem]
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Finishing Positions")
+                .font(StyleGuide.headlineFont)
+                .foregroundColor(StyleGuide.textColor)
+                .padding(.horizontal)
+                .padding(.top)
+            
+            if finishedSkippers.isEmpty {
+                Text("No boats have finished yet")
+                    .font(StyleGuide.bodyFont)
+                    .foregroundColor(StyleGuide.secondaryTextColor)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: gridColumns, spacing: 8) {
+                        ForEach(finishedSkippers.indices, id: \.self) { index in
+                            let skipper = finishedSkippers[index]
+                            HStack {
+                                SkipperTile(
+                                    skipper: skipper,
+                                    position: index + 1,
+                                    onTap: {
+                                        withAnimation {
+                                            finishedSkippers.removeAll { $0.id == skipper.id }
+                                            unfinishedSkippers.append(skipper)
+                                            unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+                                        }
+                                    }
+                                )
+                                Image(systemName: "line.3.horizontal")
+                                    .foregroundColor(StyleGuide.secondaryTextColor)
+                                    .padding(.trailing, 8)
+                                    .accessibilityLabel("Drag to reorder")
+                            }
+                            .onDrag({
+                                self.draggedSkipper = skipper
+                                return NSItemProvider(object: skipper.id as NSString)
+                            }, preview: {
+                                SkipperTile(skipper: skipper, position: index + 1, onTap: {})
+                                    .opacity(0.8)
+                            })
+                            .onDrop(of: [.text], delegate: SkipperDropDelegate(
+                                skipper: skipper,
+                                finishers: $finishedSkippers,
+                                draggedSkipper: $draggedSkipper
+                            ))
+                            .contextMenu {
+                                Button(action: {
+                                    withAnimation {
+                                        finishedSkippers.removeAll { $0.id == skipper.id }
+                                        dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dns))
+                                    }
+                                }) {
+                                    Text("Mark as DNS")
+                                }
+                                Button(action: {
+                                    withAnimation {
+                                        finishedSkippers.removeAll { $0.id == skipper.id }
+                                        dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dnf))
+                                    }
+                                }) {
+                                    Text("Mark as DNF")
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                }
+            }
+        }
+    }
+}
+
+// Extracted DNS/DNF Boats Section
+struct DNSDNFBoatsSection: View {
+    @Binding var dnsDnfSkippers: [SkipperStatus]
+    @Binding var unfinishedSkippers: [Skipper]
+    @Binding var finishedSkippers: [Skipper]
+    let gridColumns: [GridItem]
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("DNS/DNF Boats")
+                .font(StyleGuide.headlineFont)
+                .foregroundColor(StyleGuide.textColor)
+                .padding(.horizontal)
+                .padding(.top)
+            
+            if dnsDnfSkippers.isEmpty {
+                Text("No boats marked as DNS or DNF")
+                    .font(StyleGuide.bodyFont)
+                    .foregroundColor(StyleGuide.secondaryTextColor)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: gridColumns, spacing: 8) {
+                        ForEach(dnsDnfSkippers, id: \.skipper.id) { skipperStatus in
+                            let skipper = skipperStatus.skipper
+                            let status = skipperStatus.status
+                            let tile = SkipperTile(
+                                skipper: skipper,
+                                status: status.rawValue.uppercased(),
+                                onTap: {
+                                    withAnimation {
+                                        dnsDnfSkippers.removeAll { $0.skipper.id == skipper.id }
+                                        unfinishedSkippers.append(skipper)
+                                        unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+                                    }
+                                }
+                            )
+                            tile
+                                .contextMenu {
+                                    if status != .dns {
+                                        Button(action: {
+                                            withAnimation {
+                                                dnsDnfSkippers.removeAll { $0.skipper.id == skipper.id }
+                                                dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dns))
+                                            }
+                                        }) {
+                                            Text("Mark as DNS")
+                                        }
+                                    }
+                                    if status != .dnf {
+                                        Button(action: {
+                                            withAnimation {
+                                                dnsDnfSkippers.removeAll { $0.skipper.id == skipper.id }
+                                                dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dnf))
+                                            }
+                                        }) {
+                                            Text("Mark as DNF")
+                                        }
+                                    }
+                                    Button(action: {
+                                        withAnimation {
+                                            dnsDnfSkippers.removeAll { $0.skipper.id == skipper.id }
+                                            finishedSkippers.append(skipper)
+                                        }
+                                    }) {
+                                        Text("Mark as Finished")
+                                    }
+                                }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                }
+            }
+        }
+    }
+}
+
+struct EditRaceView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Skipper.name, order: .forward) private var allSkippers: [Skipper]
+    
+    @State private var unfinishedSkippers: [Skipper] = []
+    @State private var finishedSkippers: [Skipper] = []
+    @State private var dnsDnfSkippers: [SkipperStatus] = []
+    @State private var draggedSkipper: Skipper?
+    let race: Race
+    let onSave: ([Skipper]) -> Void
+    
+    private let gridColumns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+    
+    private var canSave: Bool {
+        unfinishedSkippers.isEmpty // All boats must be either finished or DNS/DNF
+    }
+    
+    init(race: Race, onSave: @escaping ([Skipper]) -> Void) {
+        self.race = race
+        self.onSave = onSave
+    }
+    
+    // Extracted action methods
+    private func markAsFinished(_ skipper: Skipper) {
+        withAnimation {
+            unfinishedSkippers.removeAll { $0.id == skipper.id }
+            finishedSkippers.append(skipper)
+        }
+    }
+    
+    private func markAsDNS(_ skipper: Skipper) {
+        withAnimation {
+            unfinishedSkippers.removeAll { $0.id == skipper.id }
+            dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dns))
+        }
+    }
+    
+    private func markAsDNF(_ skipper: Skipper) {
+        withAnimation {
+            unfinishedSkippers.removeAll { $0.id == skipper.id }
+            dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: .dnf))
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                UnfinishedBoatsSection(
+                    unfinishedSkippers: unfinishedSkippers,
+                    gridColumns: gridColumns,
+                    markAsFinished: markAsFinished,
+                    markAsDNS: markAsDNS,
+                    markAsDNF: markAsDNF
+                )
+                
+                FinishingPositionsSection(
+                    finishedSkippers: $finishedSkippers,
+                    unfinishedSkippers: $unfinishedSkippers,
+                    dnsDnfSkippers: $dnsDnfSkippers,
+                    draggedSkipper: $draggedSkipper,
+                    gridColumns: gridColumns
+                )
+                
+                DNSDNFBoatsSection(
+                    dnsDnfSkippers: $dnsDnfSkippers,
+                    unfinishedSkippers: $unfinishedSkippers,
+                    finishedSkippers: $finishedSkippers,
+                    gridColumns: gridColumns
+                )
+            }
+            .background(StyleGuide.nauticalGradient)
+            .navigationTitle("Record Race Finishes")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(StyleGuide.nauticalBlueAccent)
+                    .accessibilityLabel("Cancel editing race")
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        // Set DNS/DNF statuses in the Race object
+                        for skipperStatus in dnsDnfSkippers {
+                            race.setStatus(skipperStatus.status, for: skipperStatus.skipper)
+                        }
+                        // Combine finished skippers and DNS/DNF skippers for saving
+                        let allSkippers = finishedSkippers + dnsDnfSkippers.map { $0.skipper }
+                        onSave(allSkippers)
+                        dismiss()
+                    }
+                    .foregroundColor(canSave ? StyleGuide.nauticalBlueAccent : StyleGuide.secondaryTextColor)
+                    .disabled(!canSave)
+                    .accessibilityLabel("Save race finishes")
+                    .accessibilityHint(canSave ? "Tap to save the race results" : "Cannot save until all boats are finished or marked as DNS/DNF")
+                }
+            }
+            .onAppear {
+                // Initialize the lists
+                let currentFinishingPositions = race.fetchFinishingPositions(using: modelContext)
+                
+                // Reset lists
+                finishedSkippers = []
+                dnsDnfSkippers = []
+                unfinishedSkippers = []
+                
+                // First, categorize skippers that have recorded positions
+                for skipper in currentFinishingPositions {
+                    let status = race.getStatus(for: skipper)
+                    if status == .finished {
+                        finishedSkippers.append(skipper)
+                    } else {
+                        dnsDnfSkippers.append(SkipperStatus(skipper: skipper, status: status))
+                    }
+                }
+                
+                // Then, add skippers that are not in the finishing positions to unfinished
+                unfinishedSkippers = allSkippers.filter { skipper in
+                    !currentFinishingPositions.contains { $0.id == skipper.id }
+                }
+                
+                // Sort for consistent display
+                finishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+                dnsDnfSkippers.sort { $0.skipper.sailNumber < $1.skipper.sailNumber }
+                unfinishedSkippers.sort { $0.sailNumber < $1.sailNumber }
+            }
+        }
+    }
+    
+    private func positionSuffix(for position: Int) -> String {
+        switch position {
+        case 1:
+            return "1st"
+        case 2:
+            return "2nd"
+        case 3:
+            return "3rd"
+        default:
+            return "\(position)th"
+        }
+    }
+}
+
+#Preview {
+    let schema = Schema([RaceEvent.self, Skipper.self, Race.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: RaceEvent.self, Skipper.self, Race.self, configurations: config)
+    
+    let context = container.mainContext
+    
+    // Create Test Skippers
+    let skippers = [
+        Skipper(id: UUID().uuidString, name: "Neil Johnson", sailNumber: "01"),
+        Skipper(id: UUID().uuidString, name: "Ivy King", sailNumber: "110"),
+        Skipper(id: UUID().uuidString, name: "Diana Clark", sailNumber: "105"),
+        Skipper(id: UUID().uuidString, name: "Frank Walker", sailNumber: "107"),
+        Skipper(id: UUID().uuidString, name: "Charlie Harris", sailNumber: "104"),
+        Skipper(id: UUID().uuidString, name: "Eve Lewis", sailNumber: "106")
+    ]
+    
+    skippers.forEach { context.insert($0) }
+    
+    // Create a Race with some initial finishing positions
+    let race = Race(finishingPositions: skippers)
+    race.setStatus(.dns, for: skippers[4])
+    race.setStatus(.dnf, for: skippers[5])
+    
+    return NavigationStack {
+        EditRaceView(race: race) { _ in }
+            .modelContainer(container)
+    }
+}
+
+End of File
+
+//
+//  Models.swift
+//  RegattaManager
+//
+//  Created by Neil Fulcher on 15/04/2025.
+//
+
+import Foundation
+import SwiftData
+
+enum RaceStatus: String, Codable {
+    case finished
+    case dns
+    case dnf
+}
+
+@Model
+class RaceEvent {
+    var date: Date
+    var location: String
+    var name: String
+    var races: [Race]
+
+    init(date: Date, location: String, name: String) {
+        self.date = date
+        self.location = location
+        self.name = name
+        self.races = []
+    }
+}
+
+@Model
+class Skipper {
+    var id: String
+    var name: String
+    var sailNumber: String
+
+    init(id: String, name: String, sailNumber: String) {
+        self.id = id
+        self.name = name
+        self.sailNumber = sailNumber
+    }
+}
+
+@Model
+class Race {
+    var creationDate: Date
+    var event: RaceEvent?
+    private var finishingPositionsNames: [String]
+    private var statuses: [String: String] // Maps skipper ID to RaceStatus rawValue
+    
+    var isCompleted: Bool {
+        let finishers = finishingPositionsNames.filter { statuses[$0] == RaceStatus.finished.rawValue }
+        let dns = finishingPositionsNames.filter { statuses[$0] == RaceStatus.dns.rawValue }
+        let dnf = finishingPositionsNames.filter { statuses[$0] == RaceStatus.dnf.rawValue }
+        return !finishers.isEmpty || !dns.isEmpty || !dnf.isEmpty
+    }
+    
+    init(finishingPositions: [Skipper]) {
+        self.creationDate = Date()
+        self.finishingPositionsNames = finishingPositions.map { $0.id }
+        self.statuses = Dictionary(uniqueKeysWithValues: finishingPositions.map { ($0.id, RaceStatus.finished.rawValue) })
+    }
+    
+    func setFinishingPositions(_ skippers: [Skipper]) {
+        self.finishingPositionsNames = skippers.map { $0.id }
+        // Preserve existing statuses for skippers that are still in the list
+        var newStatuses: [String: String] = [:]
+        for skipper in skippers {
+            newStatuses[skipper.id] = statuses[skipper.id] ?? RaceStatus.finished.rawValue
+        }
+        self.statuses = newStatuses
+    }
+    
+    func fetchFinishingPositions(using context: ModelContext) -> [Skipper] {
+        let skipperIds = finishingPositionsNames
+        let predicate = #Predicate<Skipper> { skipper in
+            skipperIds.contains(skipper.id)
+        }
+        let fetchDescriptor = FetchDescriptor<Skipper>(predicate: predicate)
+        do {
+            let allSkippers = try context.fetch(fetchDescriptor)
+            return skipperIds.compactMap { id in
+                allSkippers.first { $0.id == id }
+            }
+        } catch {
+            print("Failed to fetch skippers: \(error)")
+            return []
+        }
+    }
+    
+    func setStatus(_ status: RaceStatus, for skipper: Skipper) {
+        statuses[skipper.id] = status.rawValue
+    }
+    
+    func getStatus(for skipper: Skipper) -> RaceStatus {
+        guard let statusRawValue = statuses[skipper.id],
+              let status = RaceStatus(rawValue: statusRawValue) else {
+            return .finished
+        }
+        return status
+    }
+}
+
+End of File
+
+// RegattaDetailView.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 18/04/2025.
+//
+
+import SwiftUI
+import SwiftData
+
+struct RegattaDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @State private var showEditRaceView: Bool = false
+    @State private var selectedRace: Race?
+    @State private var refreshID = UUID() // To force UI refresh
+    
+    let event: RaceEvent
+    
+    var races: [Race] {
+        event.races.sorted(by: { $0.creationDate < $1.creationDate })
+    }
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Event Details
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(event.name)
+                        .font(StyleGuide.headlineFont)
+                        .foregroundColor(StyleGuide.textColor)
+                    Text("LOC: \(event.location)")
+                        .font(StyleGuide.bodyFont)
+                        .foregroundColor(StyleGuide.textColor)
+                    Text("Date: \(event.date, style: .date)")
+                        .font(StyleGuide.bodyFont)
+                        .foregroundColor(StyleGuide.textColor)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Event Details: Name \(event.name), Location \(event.location), Date \(event.date, style: .date)")
+                
+                // Completed Races
+                ForEach(races.filter { $0.isCompleted }, id: \.self) { race in
+                    Button(action: {
+                        selectedRace = race
+                        showEditRaceView = true
+                    }) {
+                        Text("Race \(raceNumber(for: race))")
+                            .font(StyleGuide.bodyFont)
+                            .bold()
+                            .foregroundColor(StyleGuide.textColor)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .accessibilityLabel("Race \(raceNumber(for: race))")
+                    .accessibilityHint("Tap to view and edit finishing positions")
+                    
+                    Divider()
+                }
+                
+                // Add bottom padding
+                Spacer()
+                    .frame(height: 8)
+            }
+        }
+        .id(refreshID)
+        .navigationTitle("Regatta Details")
+        .background(StyleGuide.nauticalGradient)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    do {
+                        let newRace = Race(finishingPositions: [])
+                        newRace.event = event
+                        event.races.append(newRace)
+                        modelContext.insert(newRace)
+                        try modelContext.save()
+                        refreshID = UUID()
+                        selectedRace = newRace
+                        showEditRaceView = true
+                        print("Successfully added new race and opened EditRaceView")
+                    } catch {
+                        print("Failed to add new race: \(error)")
+                    }
+                }) {
+                    Image(systemName: "plus")
+                        .foregroundColor(StyleGuide.nauticalBlueAccent)
+                        .accessibilityLabel("Add new race")
+                }
+            }
+        }
+        .sheet(isPresented: $showEditRaceView) {
+            if let race = selectedRace {
+                EditRaceView(race: race) { updatedSkippers in
+                    race.setFinishingPositions(updatedSkippers)
+                    do {
+                        try modelContext.save()
+                        refreshID = UUID()
+                        print("Successfully saved race updates")
+                    } catch {
+                        print("Failed to save race updates: \(error)")
+                    }
+                }
+            }
+        }
+    }
+    
+    private func raceNumber(for race: Race) -> Int {
+        guard let index = races.firstIndex(of: race) else {
+            return 0
+        }
+        return index + 1
+    }
+    
+    private func positionSuffix(for position: Int) -> String {
+        switch position {
+        case 1:
+            return "1st"
+        case 2:
+            return "2nd"
+        case 3:
+            return "3rd"
+        default:
+            return "\(position)th"
+        }
+    }
+}
+
+#Preview {
+    let schema = Schema([RaceEvent.self, Skipper.self, Race.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: RaceEvent.self, Skipper.self, Race.self, configurations: config)
+    
+    let context = container.mainContext
+    
+    // Create Test Skippers
+    let skippers = [
+        Skipper(id: UUID().uuidString, name: "Neil Johnson", sailNumber: "01"),
+        Skipper(id: UUID().uuidString, name: "Ivy King", sailNumber: "110"),
+        Skipper(id: UUID().uuidString, name: "Diana Clark", sailNumber: "105"),
+        Skipper(id: UUID().uuidString, name: "Frank Walker", sailNumber: "107"),
+        Skipper(id: UUID().uuidString, name: "Charlie Harris", sailNumber: "104"),
+        Skipper(id: UUID().uuidString, name: "Trevor Brown", sailNumber: "31"),
+        Skipper(id: UUID().uuidString, name: "Eve Lewis", sailNumber: "106"),
+        Skipper(id: UUID().uuidString, name: "Alice Davis", sailNumber: "102"),
+        Skipper(id: UUID().uuidString, name: "John Smith", sailNumber: "47"),
+        Skipper(id: UUID().uuidString, name: "Jane Doe", sailNumber: "111"),
+        Skipper(id: UUID().uuidString, name: "Bob Smith", sailNumber: "112"),
+        Skipper(id: UUID().uuidString, name: "Alice Brown", sailNumber: "103"),
+        Skipper(id: UUID().uuidString, name: "Tom Jones", sailNumber: "108"),
+        Skipper(id: UUID().uuidString, name: "Sarah Lee", sailNumber: "109"),
+        Skipper(id: UUID().uuidString, name: "Mike Wilson", sailNumber: "113")
+    ]
+    
+    skippers.forEach { context.insert($0) }
+    
+    // Create Test Event and Races
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "dd MMMM yyyy"
+    guard let date = dateFormatter.date(from: "19 April 2025") else {
+        fatalError("Failed to parse date for test regatta in preview")
+    }
+    
+    let event = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
+    
+    // Race 1: Some finishers, DNS, and DNF
+    let race1Finishers = Array(skippers[0..<5]) // First 5 skippers
+    let race1 = Race(finishingPositions: race1Finishers)
+    race1.setStatus(.dns, for: skippers[0]) // Neil Johnson DNS
+    race1.setStatus(.dnf, for: skippers[1]) // Ivy King DNF
+    
+    // Race 2: Different finishers
+    let race2Finishers = Array(skippers[5..<10]) // Next 5 skippers
+    let race2 = Race(finishingPositions: race2Finishers)
+    race2.setStatus(.dns, for: skippers[5]) // Trevor Brown DNS
+    
+    // Race 3: Empty (not completed)
+    let race3 = Race(finishingPositions: [])
+    
+    race1.event = event
+    race2.event = event
+    race3.event = event
+    event.races.append(contentsOf: [race1, race2, race3])
+    
+    context.insert(event)
+    context.insert(race1)
+    context.insert(race2)
+    context.insert(race3)
+    
+    do {
+        try context.save()
+        print("Successfully loaded test data for RegattaDetailView preview")
+    } catch {
+        print("Failed to load test data for RegattaDetailView preview: \(error)")
+    }
+    
+    return NavigationStack {
+        RegattaDetailView(event: event)
+            .modelContainer(container)
+    }
+}
+
+End of file
+
+// RegattaListView.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 15/04/2025.
+//
+
+import SwiftUI
+import SwiftData
+
+struct RegattaListView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \RaceEvent.date, order: .reverse) private var events: [RaceEvent]
+    @State private var showingAddEventSheet = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(events) { event in
+                    NavigationLink(destination: RegattaDetailView(event: event)) {
+                        VStack(alignment: .leading) {
+                            Text(event.name.isEmpty ? "Unnamed Regatta" : event.name)
+                                .font(StyleGuide.titleFont)
+                                .foregroundColor(StyleGuide.textColor)
+                            Text("Location: \(event.location.isEmpty ? "Unknown" : event.location)")
+                                .font(StyleGuide.bodyFont)
+                                .foregroundColor(StyleGuide.secondaryTextColor)
+                            Text("Date: \(event.date, style: .date)")
+                                .font(StyleGuide.captionFont)
+                                .foregroundColor(StyleGuide.secondaryTextColor)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(StyleGuide.sailWhite)
+                        )
+                        .padding(.vertical, 2)
+                        .accessibilityLabel("\(event.name.isEmpty ? "Unnamed Regatta" : event.name), Location: \(event.location.isEmpty ? "Unknown" : event.location), Date: \(event.date, style: .date)")
+                        .accessibilityHint("Tap to view regatta details")
+                        .transition(.opacity) // Fade-in animation for list items
+                    }
+                }
+                .onDelete { indexSet in
+                    withAnimation {
+                        indexSet.forEach { index in
+                            let event = events[index]
+                            modelContext.delete(event)
+                        }
+                        do {
+                            try modelContext.save()
+                        } catch {
+                            print("Failed to delete event: \(error)")
+                        }
+                    }
+                }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        // Swipe action handled in onDelete
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+            }
+            .navigationTitle("Regattas")
+            .navigationBarItems(trailing: Button(action: {
+                showingAddEventSheet = true
+            }) {
+                Image(systemName: "plus")
+                    .foregroundColor(StyleGuide.nauticalBlueAccent) // Updated to nautical blue
+            }
+            .accessibilityLabel("Add new regatta"))
+            .sheet(isPresented: $showingAddEventSheet) {
+                AddEventView()
+            }
+            .background(StyleGuide.nauticalGradient)
+            .animation(.easeInOut, value: showingAddEventSheet) // Sheet animation
+        }
+    }
+}
+
+struct AddEventView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @State private var name: String = ""
+    @State private var location: String = ""
+    @State private var date: Date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Regatta Name", text: $name)
+                    .font(StyleGuide.bodyFont)
+                    .accessibilityLabel("Regatta name")
+                TextField("Location", text: $location)
+                    .font(StyleGuide.bodyFont)
+                    .accessibilityLabel("Regatta location")
+                DatePicker("Date", selection: $date, displayedComponents: .date)
+                    .font(StyleGuide.bodyFont)
+                    .accessibilityLabel("Regatta date")
+            }
+            .background(StyleGuide.sailWhite)
+            .navigationTitle("Add Regatta")
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    dismiss()
+                }
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(StyleGuide.nauticalBlueAccent) // Updated to nautical blue
+                .accessibilityLabel("Cancel adding regatta"),
+                trailing: Button("Save") {
+                    let newEvent = RaceEvent(date: date, location: location, name: name)
+                    modelContext.insert(newEvent)
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        print("Failed to save event: \(error)")
+                    }
+                    dismiss()
+                }
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(StyleGuide.nauticalBlueAccent) // Updated to nautical blue
+                .disabled(name.isEmpty || location.isEmpty)
+                .accessibilityLabel("Save regatta")
+            )
+            .background(StyleGuide.nauticalGradient)
+        }
+    }
+}
+
+#Preview {
+    let schema = Schema([RaceEvent.self, Skipper.self, Race.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: RaceEvent.self, Skipper.self, Race.self, configurations: config)
+    
+    return RegattaListView()
+        .modelContainer(container)
+}
+
+End of file
+
+// RegattaManagerApp.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 15/04/2025.
+//
+
+import SwiftUI
+import SwiftData
+
+@main
+struct RegattaManagerApp: App {
+    let container: ModelContainer
+    
+    init() {
+        do {
+            let schema = Schema([RaceEvent.self, Skipper.self, Race.self])
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            container = try ModelContainer(for: schema, configurations: config)
+            
+            // Pre-populate test data in the test environment
+            if config.isStoredInMemoryOnly {
+                prepopulateTestData()
+            }
+        } catch {
+            fatalError("Failed to initialize ModelContainer: \(error)")
+        }
+    }
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .modelContainer(container)
+                .environmentObject(ClearDataManager(modelContainer: container))
+        }
+    }
+    
+    @MainActor
+    private func prepopulateTestData() {
+        let context = container.mainContext
+        
+        // Check if data already exists to avoid duplicates on app restart
+        let fetchDescriptor = FetchDescriptor<Skipper>()
+        let existingSkippers = (try? context.fetch(fetchDescriptor)) ?? []
+        guard existingSkippers.isEmpty else {
+            print("Test data already exists, skipping pre-population")
+            return
+        }
+        
+        // Create 15 Skippers with surnames; first 3 with 2-digit sail numbers
+        let skippers = [
+            Skipper(id: UUID().uuidString, name: "John Smith", sailNumber: "47"),
+            Skipper(id: UUID().uuidString, name: "Neil Johnson", sailNumber: "01"),
+            Skipper(id: UUID().uuidString, name: "Trevor Brown", sailNumber: "31"),
+            Skipper(id: UUID().uuidString, name: "Alice Davis", sailNumber: "102"),
+            Skipper(id: UUID().uuidString, name: "Bob Wilson", sailNumber: "103"),
+            Skipper(id: UUID().uuidString, name: "Charlie Harris", sailNumber: "104"),
+            Skipper(id: UUID().uuidString, name: "Diana Clark", sailNumber: "105"),
+            Skipper(id: UUID().uuidString, name: "Eve Lewis", sailNumber: "106"),
+            Skipper(id: UUID().uuidString, name: "Frank Walker", sailNumber: "107"),
+            Skipper(id: UUID().uuidString, name: "Grace Hall", sailNumber: "108"),
+            Skipper(id: UUID().uuidString, name: "Henry Allen", sailNumber: "109"),
+            Skipper(id: UUID().uuidString, name: "Ivy King", sailNumber: "110"),
+            Skipper(id: UUID().uuidString, name: "Jack Scott", sailNumber: "111"),
+            Skipper(id: UUID().uuidString, name: "Kelly Green", sailNumber: "112"),
+            Skipper(id: UUID().uuidString, name: "Liam White", sailNumber: "113")
+        ]
+        
+        skippers.forEach { context.insert($0) }
+        
+        // Create Regatta
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "dd MMMM yyyy"
+        guard let date = dateFormatter.date(from: "19 April 2025") else {
+            print("Failed to parse date for test regatta")
+            return
+        }
+        
+        let regatta = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
+        context.insert(regatta)
+        
+        // Create 12 Races with all 15 skippers
+        for i in 1...12 {
+            let race = Race(finishingPositions: skippers.shuffled())
+            race.event = regatta
+            regatta.races.append(race)
+            context.insert(race)
+        }
+        
+        do {
+            try context.save()
+            print("Successfully pre-populated test data")
+        } catch {
+            print("Failed to pre-populate test data: \(error)")
+        }
+    }
+}
+
+class ClearDataManager: ObservableObject {
+    let modelContainer: ModelContainer
+    
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
+    }
+    
+    @MainActor
+    func clearData() {
+        let context = modelContainer.mainContext
+        do {
+            try context.delete(model: RaceEvent.self)
+            try context.delete(model: Skipper.self)
+            try context.delete(model: Race.self)
+            try context.save()
+            print("Cleared all data from SwiftData store")
+        } catch {
+            print("Failed to clear data: \(error)")
+        }
+    }
+}
+
+
+End of file
+
+
+// ScoresView.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 18/04/2025.
+//
+
+import SwiftUI
+import SwiftData
+
+struct HeaderRow: View {
+    let raceCount: Int
+    let uncompletedRaces: [Int] // Race indices (0-based) with no finishing positions
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            Text("Skipper")
+                .font(StyleGuide.bodyFont)
+                .bold()
+                .foregroundColor(StyleGuide.textColor)
+                .frame(minWidth: 120, alignment: .leading)
+                .padding(.horizontal, 1)
+            Text("Sail")
+                .font(StyleGuide.bodyFont)
+                .bold()
+                .foregroundColor(StyleGuide.textColor)
+                .frame(minWidth: 50, alignment: .center)
+                .padding(.horizontal, 6)
+            Text("Total")
+                .font(StyleGuide.bodyFont)
+                .bold()
+                .foregroundColor(StyleGuide.textColor)
+                .frame(minWidth: 50, alignment: .center)
+                .padding(.horizontal, 6)
+            ForEach(1...raceCount, id: \.self) { raceNum in
+                let raceIndex = raceNum - 1
+                Text("R\(raceNum)")
+                    .font(StyleGuide.bodyFont)
+                    .bold()
+                    .foregroundColor(StyleGuide.textColor)
+                    .italic(uncompletedRaces.contains(raceIndex)) // Italicize uncompleted races
+                    .frame(minWidth: 40, alignment: .center)
+                    .padding(.horizontal, 4)
+            }
+        }
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Score table headers: Skipper, Sail Number, Total Points, and Race positions")
+    }
+}
+
+struct RacePositionCell: View {
+    let position: Int
+    let isDiscarded: Bool
+    let race: Race
+    let skipper: Skipper
+    
+    var body: some View {
+        let status = race.getStatus(for: skipper)
+        ZStack {
+            if isDiscarded {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.1))
+                    .frame(width: 32, height: 20)
+            }
+            Text(status == .finished ? "\(position)" : "\(status.rawValue.uppercased()) (\(position))")
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(status == .finished ? StyleGuide.textColor : .red)
+                .frame(minWidth: 40, alignment: .center)
+                .padding(.horizontal, 4)
+        }
+    }
+}
+
+struct ScoreRow: View {
+    let score: Score
+    let races: [Race]
+    let modelContext: ModelContext
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(score.skipperName)
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(StyleGuide.textColor)
+                .frame(minWidth: 120, alignment: .leading)
+                .padding(.horizontal, 6)
+            Text(score.sailNumber)
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(StyleGuide.secondaryTextColor)
+                .frame(minWidth: 40, alignment: .center)
+                .padding(.horizontal, 8)
+            Text(score.hasDNSorDNF ? "\(score.totalPoints)*" : "\(score.totalPoints)")
+                .font(StyleGuide.bodyFont)
+                .foregroundColor(StyleGuide.textColor)
+                .frame(minWidth: 40, alignment: .center)
+                .padding(.horizontal, 8)
+            // Fetch the skipper for this score once
+            let fetchDescriptor = FetchDescriptor<Skipper>()
+            let allSkippers = (try? modelContext.fetch(fetchDescriptor)) ?? []
+            let skipper = allSkippers.first(where: { $0.sailNumber == score.sailNumber && $0.name == score.skipperName })
+            
+            if let skipper = skipper {
+                ForEach(Array(score.positionsPerRace.indices), id: \.self) { index in
+                    let position = score.positionsPerRace[index]
+                    let isDiscarded = score.discardedRaceIndices.contains(index)
+                    let race = races[index]
+                    RacePositionCell(
+                        position: position,
+                        isDiscarded: isDiscarded,
+                        race: race,
+                        skipper: skipper
+                    )
+                }
+            } else {
+                ForEach(Array(score.positionsPerRace.indices), id: \.self) { _ in
+                    Text("-")
+                        .font(StyleGuide.bodyFont)
+                        .foregroundColor(StyleGuide.textColor)
+                        .frame(minWidth: 40, alignment: .center)
+                        .padding(.horizontal, 4)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "Skipper: \(score.skipperName), Sail: \(score.sailNumber), Total Points: \(score.totalPoints), Race Positions: \(score.positionsPerRace.map { String($0) }.joined(separator: ", "))"
+        )
+    }
+}
+
+struct ScoresView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \RaceEvent.date, order: .reverse) private var events: [RaceEvent]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(events) { event in
+                    Section(
+                        header: Text("\(event.name) - \(event.location) - \(event.date, style: .date)")
+                            .font(StyleGuide.headlineFont)
+                            .foregroundColor(StyleGuide.textColor)
+                            .padding(.vertical, 4)
+                    ) {
+                        if event.races.isEmpty {
+                            Text("No races available")
+                                .font(StyleGuide.bodyFont)
+                                .foregroundColor(StyleGuide.secondaryTextColor)
+                                .padding()
+                                .accessibilityLabel("No races available for \(event.name)")
+                        } else {
+                            let races = event.races.sorted(by: { $0.creationDate < $1.creationDate })
+                            let (scores, uncompletedRaces) = ScoreCalculator.computeScores(for: races, using: modelContext)
+                            if scores.isEmpty {
+                                Text("No scores available")
+                                .font(StyleGuide.bodyFont)
+                                .foregroundColor(StyleGuide.secondaryTextColor)
+                                .padding()
+                                .accessibilityLabel("No scores available for \(event.name)")
+                            } else {
+                                // Table Container with Horizontal Scrolling
+                                ScrollView(.horizontal, showsIndicators: true) {
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        ZStack(alignment: .topLeading) {
+                                            // Table Content
+                                            VStack(alignment: .leading, spacing: 0) {
+                                                HeaderRow(raceCount: event.races.count, uncompletedRaces: uncompletedRaces)
+                                                
+                                                // Data Rows
+                                                ForEach(scores, id: \.skipperName) { score in
+                                                    ScoreRow(score: score, races: races, modelContext: modelContext)
+                                                        .accessibilityHint("Row in score table for \(event.name)")
+                                                }
+                                            }
+
+                                            // Continuous Vertical Lines
+                                            GeometryReader { geometry in
+                                                let columnWidths: [CGFloat] = [120, 50, 50] + Array(repeating: 40, count: event.races.count)
+                                                let offsets = columnWidths.reduce(into: [CGFloat]()) { result, width in
+                                                    result.append((result.last ?? 0) + width + 8)
+                                                }
+                                                ForEach(0..<offsets.count, id: \.self) { index in
+                                                    Rectangle()
+                                                        .fill(Color.gray.opacity(0.3))
+                                                        .frame(width: 1, height: geometry.size.height)
+                                                        .offset(x: offsets[index] - 4, y: 0)
+                                                }
+                                            }
+                                        }
+                                        
+                                        // Legend for DNS/DNF, uncompleted races, and discards
+                                        if scores.contains(where: { $0.hasDNSorDNF }) || !uncompletedRaces.isEmpty || event.races.count >= 5 {
+                                            HStack {
+                                                if scores.contains(where: { $0.hasDNSorDNF }) {
+                                                    Text("* Includes DNS/DNF penalties")
+                                                        .font(StyleGuide.bodyFont)
+                                                        .foregroundColor(StyleGuide.secondaryTextColor)
+                                                }
+                                                if !uncompletedRaces.isEmpty {
+                                                    Text("Italicized races have no finishing positions")
+                                                        .font(StyleGuide.bodyFont)
+                                                        .foregroundColor(StyleGuide.secondaryTextColor)
+                                                }
+                                                if event.races.count >= 5 {
+                                                    let numberOfDiscards = event.races.count / 5
+                                                    Text("\(numberOfDiscards) race\(numberOfDiscards == 1 ? "" : "s") discarded")
+                                                        .font(StyleGuide.bodyFont)
+                                                        .foregroundColor(StyleGuide.secondaryTextColor)
+                                                }
+                                                Spacer()
+                                            }
+                                            .padding(.vertical, 4)
+                                            .padding(.horizontal)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .headerProminence(.increased)
+                }
+            }
+            .navigationTitle("Scores")
+            .background(StyleGuide.nauticalGradient)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Image(systemName: "trophy")
+                        .foregroundColor(StyleGuide.nauticalBlueAccent)
+                        .accessibilityLabel("Scores view")
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    let schema = Schema([RaceEvent.self, Skipper.self, Race.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: RaceEvent.self, Skipper.self, Race.self, configurations: config)
+    
+    let context = container.mainContext
+    
+    // Create Test Skippers
+    let skippers = [
+        Skipper(id: UUID().uuidString, name: "Neil Johnson", sailNumber: "01"),
+        Skipper(id: UUID().uuidString, name: "Ivy King", sailNumber: "110"),
+        Skipper(id: UUID().uuidString, name: "Diana Clark", sailNumber: "105"),
+        Skipper(id: UUID().uuidString, name: "Frank Walker", sailNumber: "107"),
+        Skipper(id: UUID().uuidString, name: "Charlie Harris", sailNumber: "104"),
+        Skipper(id: UUID().uuidString, name: "Trevor Brown", sailNumber: "31"),
+        Skipper(id: UUID().uuidString, name: "Eve Lewis", sailNumber: "106"),
+        Skipper(id: UUID().uuidString, name: "Alice Davis", sailNumber: "102"),
+        Skipper(id: UUID().uuidString, name: "John Smith", sailNumber: "47")
+    ]
+    
+    skippers.forEach { context.insert($0) }
+    
+    // Create Regatta
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "dd MMMM yyyy"
+    guard let date = dateFormatter.date(from: "19 April 2025") else {
+        fatalError("Failed to parse date for test regatta in preview")
+    }
+    
+    let regatta = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
+    context.insert(regatta)
+    
+    // Create 9 Races with all skippers
+    for i in 1...9 {
+        // Exclude Neil Johnson (DNS in Race 1) and Ivy King (DNF in Race 2) from finishing positions
+        var raceSkippers = skippers.shuffled()
+        if i == 1 {
+            raceSkippers.removeAll { $0.sailNumber == "01" } // Exclude Neil Johnson
+        }
+        if i == 2 {
+            raceSkippers.removeAll { $0.sailNumber == "110" } // Exclude Ivy King
+        }
+        let race = Race(finishingPositions: raceSkippers)
+        race.event = regatta
+        regatta.races.append(race)
+        context.insert(race)
+        // Mark some boats as DNS/DNF for testing
+        if i == 1 {
+            race.setStatus(.dns, for: skippers[0]) // Neil Johnson DNS in Race 1
+        }
+        if i == 2 {
+            race.setStatus(.dnf, for: skippers[1]) // Ivy King DNF in Race 2
+        }
+    }
+    
+    do {
+        try context.save()
+        print("Successfully loaded test data for ScoresView preview")
+    } catch {
+        print("Failed to load test data for ScoresView preview: \(error)")
+    }
+    
+    return ScoresView()
+        .modelContainer(container)
+}
+
+
+End of file
+
+// SkipperListView.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 18/04/2025.
+//
+
+import SwiftUI
+import SwiftData
+
+struct SkipperListView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Skipper.name, order: .forward) private var skippers: [Skipper]
+    @State private var selection: Set<Skipper> = []
+    var onSave: ([Skipper]) -> Void
+
+    var body: some View {
+        NavigationStack {
+            if skippers.isEmpty {
+                Text("No skippers available")
+                    .font(StyleGuide.headlineFont)
+                    .foregroundColor(StyleGuide.secondaryTextColor)
+                    .padding()
+                    .accessibilityLabel("No skippers available")
+            } else {
+                List {
+                    Section(header: Text("Select Skippers")
+                                .font(StyleGuide.headlineFont)
+                                .foregroundColor(StyleGuide.textColor)) {
+                        ForEach(skippers) { skipper in
+                            HStack {
+                                Text(skipper.name)
+                                    .font(StyleGuide.bodyFont)
+                                    .foregroundColor(StyleGuide.textColor)
+                                Spacer()
+                                Text("Sail: \(skipper.sailNumber)")
+                                    .font(StyleGuide.captionFont)
+                                    .foregroundColor(StyleGuide.secondaryTextColor)
+                                if selection.contains(skipper) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(StyleGuide.nauticalBlueAccent) // Updated to nautical blue
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.easeInOut) {
+                                    if selection.contains(skipper) {
+                                        selection.remove(skipper)
+                                    } else {
+                                        selection.insert(skipper)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(selection.contains(skipper) ? StyleGuide.oceanBlue.opacity(0.1) : StyleGuide.sailWhite)
+                            )
+                            .padding(.horizontal, 2)
+                            .accessibilityLabel("Skipper: \(skipper.name), Sail: \(skipper.sailNumber)")
+                            .accessibilityHint(selection.contains(skipper) ? "Selected, tap to deselect" : "Tap to select")
+                        }
+                    }
+                    .headerProminence(.increased)
+                }
+                .navigationTitle("Select Skippers")
+                .navigationBarItems(
+                    leading: Button("Cancel") {
+                        dismiss()
+                    }
+                    .font(StyleGuide.bodyFont)
+                    .foregroundColor(StyleGuide.nauticalBlueAccent) // Updated to nautical blue
+                    .accessibilityLabel("Cancel selecting skippers"),
+                    trailing: Button("Save") {
+                        onSave(Array(selection))
+                        dismiss()
+                    }
+                    .font(StyleGuide.bodyFont)
+                    .foregroundColor(StyleGuide.nauticalBlueAccent) // Updated to nautical blue
+                    .disabled(selection.isEmpty)
+                    .accessibilityLabel("Save selected skippers")
+                )
+                .background(StyleGuide.nauticalGradient)
+            }
+        }
+    }
+}
+
+#Preview {
+    let schema = Schema([RaceEvent.self, Skipper.self, Race.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: RaceEvent.self, Skipper.self, Race.self, configurations: config)
+    
+    return SkipperListView { _ in }
+        .modelContainer(container)
+}
+
+
+End of file
+
+// SkipperScore.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 18/04/2025.
+//
+
+import Foundation
+import SwiftData
+
+struct Score {
+    let skipperName: String
+    let sailNumber: String
+    let totalPoints: Int
+    let positionsPerRace: [Int] // Position for each race (or penalty for DNS/DNF)
+    let discardedRaceIndices: [Int] // Changed to an array to store multiple discards
+    let hasDNSorDNF: Bool // New property to indicate if the total includes DNS/DNF penalties
+}
+
+struct ScoreCalculator {
+    static func computeScores(for races: [Race], using context: ModelContext) -> (scores: [Score], uncompletedRaces: [Int]) {
+        // Fetch all skippers
+        let fetchDescriptor = FetchDescriptor<Skipper>()
+        guard let allSkippers = try? context.fetch(fetchDescriptor) else {
+            return (scores: [], uncompletedRaces: [])
+        }
+        
+        // Map to hold scores for each skipper
+        var scoresBySkipper: [String: (points: [Int], sailNumber: String, hasDNSorDNF: Bool)] = [:]
+        
+        for skipper in allSkippers {
+            scoresBySkipper[skipper.id] = (points: [], sailNumber: "", hasDNSorDNF: false)
+        }
+        
+        // Track races with no finishing positions
+        var uncompletedRaces: [Int] = []
+        
+        // Calculate points for each race
+        for (index, race) in races.enumerated() {
+            let finishingPositions = race.fetchFinishingPositions(using: context)
+            let totalBoats = allSkippers.count
+            
+            // Check if the race has no finishing positions
+            if finishingPositions.isEmpty {
+                uncompletedRaces.append(index)
+            }
+            
+            // Map positions for this race
+            var positionMap: [String: Int] = [:]
+            
+            // Assign positions to boats that finished
+            for (index, skipper) in finishingPositions.enumerated() {
+                let status = race.getStatus(for: skipper)
+                if status == .finished {
+                    positionMap[skipper.id] = index + 1 // 1st place = 1 point, 2nd place = 2 points, etc.
+                }
+            }
+            
+            // Assign points to all skippers for this race
+            for skipper in allSkippers {
+                var points: Int
+                let status = race.getStatus(for: skipper)
+                
+                if status == .dns || status == .dnf {
+                    // DNS/DNF boats get a penalty score (number of boats + 1)
+                    points = totalBoats + 1
+                    scoresBySkipper[skipper.id]?.hasDNSorDNF = true
+                } else if let position = positionMap[skipper.id] {
+                    points = position
+                } else {
+                    // Boats that didn't participate in this race (not in finishingPositions) are treated as DNS
+                    points = totalBoats + 1
+                    scoresBySkipper[skipper.id]?.hasDNSorDNF = true
+                }
+                
+                scoresBySkipper[skipper.id]?.points.append(points)
+                scoresBySkipper[skipper.id]?.sailNumber = skipper.sailNumber
+            }
+        }
+        
+        // Calculate number of discards (1 discard per 5 or more races)
+        let numberOfDiscards = races.count >= 5 ? races.count / 5 : 0
+        
+        // Compute total scores with multiple discards
+        var scores: [Score] = []
+        for skipper in allSkippers {
+            guard let scoreData = scoresBySkipper[skipper.id] else { continue }
+            
+            let points = scoreData.points
+            guard !points.isEmpty else { continue }
+            
+            // Find the indices of the worst races to discard (highest points)
+            let sortedIndices = points.indices.sorted { points[$0] > points[$1] }
+            let discardedIndices = sortedIndices.prefix(numberOfDiscards).sorted() // Sort for consistent display
+            
+            // Calculate total points, excluding discarded races
+            let totalPoints = points.enumerated().reduce(0) { sum, element in
+                discardedIndices.contains(element.offset) ? sum : sum + element.element
+            }
+            
+            scores.append(Score(
+                skipperName: skipper.name,
+                sailNumber: scoreData.sailNumber,
+                totalPoints: totalPoints,
+                positionsPerRace: points,
+                discardedRaceIndices: Array(discardedIndices), // Store all discarded indices
+                hasDNSorDNF: scoreData.hasDNSorDNF
+            ))
+        }
+        
+        return (scores: scores.sorted { $0.totalPoints < $1.totalPoints }, uncompletedRaces: uncompletedRaces)
+    }
+}
+
+
+End of file
+
+// StyleGuide.swift
+// RegattaManager
+//
+// Created by Neil Fulcher on 15/04/2025.
+//
+
+import SwiftUI
+
+enum StyleGuide {
+    // Colors
+    static let oceanBlue = Color.blue.opacity(0.7)
+    static let sailWhite = Color.white.opacity(0.9)
+    static let textColor = Color.black
+    static let secondaryTextColor = Color.gray
+    static let nauticalBlueAccent = Color.blue.opacity(0.5) // New nautical blue accent
+
+    // Gradients
+    static let nauticalGradient = LinearGradient(
+        gradient: Gradient(colors: [oceanBlue.opacity(0.3), sailWhite]),
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    static let buttonGradient = LinearGradient(
+        gradient: Gradient(colors: [oceanBlue, oceanBlue.opacity(0.6)]),
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    // Fonts
+    static let titleFont = Font.system(size: 24, weight: .bold, design: .default)
+    static let headlineFont = Font.system(size: 18, weight: .semibold, design: .default)
+    static let bodyFont = Font.system(size: 16, weight: .regular, design: .default)
+    static let captionFont = Font.system(size: 14, weight: .regular, design: .default)
+}
+
+End of file
+
+
+End of all files.

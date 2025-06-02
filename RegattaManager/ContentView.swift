@@ -38,7 +38,7 @@ struct ContentView: View {
                     VStack(spacing: 10) {
                         Button(action: {
                             clearDataManager.clearData()
-                            prepopulateTestData()
+                            // Test data will be reloaded on app restart by RegattaManagerApp
                         }) {
                             Text("Load Test Data")
                                 .font(StyleGuide.bodyFont)
@@ -48,6 +48,7 @@ struct ContentView: View {
                                 .cornerRadius(10)
                         }
                         .accessibilityLabel("Load test data")
+                        .accessibilityHint("Clears existing data; test data will be loaded on next app restart")
                         .accessibilityHint("Clears existing data and loads predefined test data")
                         
                         Button(action: {
@@ -80,58 +81,6 @@ struct ContentView: View {
                 }
         )
         .accessibilityLabel("Long press to toggle debug buttons")
-    }
-    
-    @MainActor
-    private func prepopulateTestData() {
-        let context = clearDataManager.modelContainer.mainContext
-        
-        // Create 15 Skippers with surnames; first 3 with 2-digit sail numbers
-        let skippers = [
-            Skipper(id: UUID().uuidString, name: "John Smith", sailNumber: "47"),
-            Skipper(id: UUID().uuidString, name: "Neil Johnson", sailNumber: "01"),
-            Skipper(id: UUID().uuidString, name: "Trevor Brown", sailNumber: "31"),
-            Skipper(id: UUID().uuidString, name: "Alice Davis", sailNumber: "102"),
-            Skipper(id: UUID().uuidString, name: "Bob Wilson", sailNumber: "103"),
-            Skipper(id: UUID().uuidString, name: "Charlie Harris", sailNumber: "104"),
-            Skipper(id: UUID().uuidString, name: "Diana Clark", sailNumber: "105"),
-            Skipper(id: UUID().uuidString, name: "Eve Lewis", sailNumber: "106"),
-            Skipper(id: UUID().uuidString, name: "Frank Walker", sailNumber: "107"),
-            Skipper(id: UUID().uuidString, name: "Grace Hall", sailNumber: "108"),
-            Skipper(id: UUID().uuidString, name: "Henry Allen", sailNumber: "109"),
-            Skipper(id: UUID().uuidString, name: "Ivy King", sailNumber: "110"),
-            Skipper(id: UUID().uuidString, name: "Jack Scott", sailNumber: "111"),
-            Skipper(id: UUID().uuidString, name: "Kelly Green", sailNumber: "112"),
-            Skipper(id: UUID().uuidString, name: "Liam White", sailNumber: "113")
-        ]
-        
-        skippers.forEach { context.insert($0) }
-        
-        // Create Regatta
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "dd MMMM yyyy"
-        guard let date = dateFormatter.date(from: "19 April 2025") else {
-            print("Failed to parse date for test regatta")
-            return
-        }
-        
-        let regatta = RaceEvent(date: date, location: "Filby", name: "Test Regatta")
-        context.insert(regatta)
-        
-        // Create 12 Races with all 15 skippers
-        for i in 1...12 {
-            let race = Race(finishingPositions: skippers.shuffled())
-            race.event = regatta
-            regatta.races.append(race)
-            context.insert(race)
-        }
-        
-        do {
-            try context.save()
-            print("Successfully loaded test data via button")
-        } catch {
-            print("Failed to load test data via button: \(error)")
-        }
     }
 }
 
