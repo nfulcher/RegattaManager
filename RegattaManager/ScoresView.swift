@@ -62,7 +62,8 @@ struct RacePositionCell: View {
                     .fill(Color.gray.opacity(0.1))
                     .frame(width: 32, height: 20)
             }
-            Text(status == .finished ? "\(position)" : "\(status.rawValue.uppercased()) (\(position))")
+        //   Text(status == .finished ? "\(position)" : "\(status.rawValue.uppercased()) (\(position))")
+           Text(status == .finished ? "\(position)" : "\("*")\(position)")
                 .font(StyleGuide.bodyFont)
                 .foregroundColor(status == .finished ? StyleGuide.textColor : .red)
                 .frame(minWidth: 40, alignment: .center)

@@ -79,11 +79,20 @@ struct RegattaManagerApp: App {
         context.insert(regatta)
         
         // Create 12 Races with all 15 skippers
+        // Create 12 Races with all 15 skippers
         for i in 1...12 {
-            let race = Race(finishingPositions: skippers.shuffled())
+            let raceSkippers = skippers.shuffled()
+            let race = Race(finishingPositions: raceSkippers)
             race.event = regatta
             regatta.races.append(race)
             context.insert(race)
+            
+            // Set statuses to simulate a completed race
+            race.setStatus(.dns, for: raceSkippers[i % raceSkippers.count])
+            race.setStatus(.dnf, for: raceSkippers[(i + 1) % raceSkippers.count])
+            for skipper in raceSkippers where skipper != raceSkippers[i % raceSkippers.count] && skipper != raceSkippers[(i + 1) % raceSkippers.count] {
+                race.setStatus(.finished, for: skipper)
+            }
         }
         
         do {
